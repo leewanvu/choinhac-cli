@@ -23,7 +23,7 @@ Ensure you have Go 1.21+ installed.
 
 ```bash
 git clone <repository>
-cd cli-music-player
+cd choinhaccli
 go mod tidy
 go build -o player ./cmd/player
 ```
