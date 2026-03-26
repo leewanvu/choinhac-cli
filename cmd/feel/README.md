@@ -6,7 +6,7 @@ The `feel` command is an AI-powered music appreciation feature for the `choinhac
 
 1. **Metadata Extraction:** Extracts basic tags like Title, Artist, and Album from the audio file using Go.
 2. **Audio Analysis:** Sends the absolute file path to the local Python **[Analyzer Service](../../analyzer/README.md)** via HTTP. The analyzer extracts features like BPM, key, energy, and mood using `librosa`.
-3. **AI Generation:** Combines the metadata and extracted audio features, and prompts an LLM provider (Gemini, Claude, or OpenAI) to generate an emotional appreciation review.
+3. **AI Generation:** Combines the metadata and extracted audio features, and prompts an LLM provider (Gemini, Claude, OpenAI, or OpenRouter) to generate an emotional appreciation review.
 
 ## Requirements
 
@@ -20,6 +20,7 @@ The `feel` command is an AI-powered music appreciation feature for the `choinhac
    - Gemini: `export GEMINI_API_KEY="your-api-key"`
    - OpenAI: `export OPENAI_API_KEY="your-api-key"`
    - Claude: `export ANTHROPIC_API_KEY="your-api-key"`
+   - OpenRouter: `export OPENROUTER_API_KEY="your-api-key"` (Optional: `export OPENROUTER_MODEL="meta-llama/llama-3.3-70b-instruct:free"`)
 
 ## Usage
 
@@ -31,14 +32,14 @@ go run cmd/feel/main.go [flags] <audio_file>
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--provider` | `gemini` | The LLM provider to use (`gemini`, `openai`, `claude`). |
+| `--provider` | `openrouter` | The LLM provider to use (`gemini`, `openai`, `claude`, `openrouter`). |
 | `--model` | *(Default model for provider)* | The specific LLM model version you want to query. |
 | `--lang` | `vi` | Output language for the AI's response (`vi` for Vietnamese, `en` for English). |
 | `--analyzer-url` | `http://localhost:8000` | The URL where the Python Analyzer Service is running. |
 
 ### Examples
 
-**Basic usage (defaults to Gemini and Vietnamese):**
+**Basic usage (defaults to OpenRouter and Vietnamese):**
 ```bash
 go run cmd/feel/main.go ~/Music/track.wav
 ```

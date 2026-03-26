@@ -34,4 +34,17 @@ var (
 	helpStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#626262")).
 		MarginTop(1)
+
+	playlistTitleStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#7D56F4")).
+		MarginTop(1).
+		MarginBottom(0)
+
+	playlistItemStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#A0A0A0"))
+
+	currentTrackStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00FF00")).
+		Bold(true)
 )

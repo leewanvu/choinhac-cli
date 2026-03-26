@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -10,6 +11,14 @@ import (
 )
 
 type tickMsg time.Time
+type trackFinishedMsg struct{}
+
+func waitForTrackFinished(p *audio.Player) tea.Cmd {
+	return func() tea.Msg {
+		<-p.Done()
+		return trackFinishedMsg{}
+	}
+}
 
 // Model represents the applicaton state
 type Model struct {
@@ -27,7 +36,7 @@ func NewModel(p *audio.Player) Model {
 
 // Init initializes the tea application
 func (m Model) Init() tea.Cmd {
-	return m.tickCmd()
+	return tea.Batch(m.tickCmd(), waitForTrackFinished(m.player))
 }
 
 func (m Model) tickCmd() tea.Cmd {
@@ -47,6 +56,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case " ":
 			m.player.TogglePause()
+		case "n", "right":
+			m.player.Next()
+		case "p", "left":
+			m.player.Prev()
+		case "r":
+			m.player.Random()
 		case "=", "+", "up":
 			m.player.VolumeUp()
 		case "-", "down":
@@ -57,9 +72,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 
 	case tickMsg:
-		// When track finishes, audio player might set state to StateStopped.
-		// Re-trigger tick.
 		return m, m.tickCmd()
+
+	case trackFinishedMsg:
+		m.player.Next()
+		return m, waitForTrackFinished(m.player)
 
 	case error:
 		m.err = msg
@@ -121,7 +138,12 @@ func (m Model) View() string {
 	// Metadata
 	artistRow := labelStyle.Render("Artist:") + valueStyle.Render(meta.Artist)
 	albumRow := labelStyle.Render("Album:") + valueStyle.Render(meta.Album)
-	trackRow := labelStyle.Render("Track:") + valueStyle.Render(meta.Title)
+
+	playlistInfo := ""
+	if len(m.player.Playlist) > 0 {
+		playlistInfo = fmt.Sprintf(" [%d/%d]", m.player.PlaylistIdx+1, len(m.player.Playlist))
+	}
+	trackRow := labelStyle.Render("Track:") + valueStyle.Render(meta.Title+playlistInfo)
 
 	metadata := metadataStyle.Render(
 		artistRow + "\n" +
@@ -161,13 +183,51 @@ func (m Model) View() string {
 	progress := fmt.Sprintf("%s %s", progBar, timeStr)
 
 	// Help
-	help := helpStyle.Render("space: play/pause • ↑/+: vol up • ↓/-: vol down • q: quit")
+	help := helpStyle.Render("space: play/pause • n/→: next • p/←: prev • r: random • ↑/+: vol up • ↓/-: vol down • q: quit")
+
+	// Playlist
+	playlistView := ""
+	if len(m.player.Playlist) > 0 {
+		var lines []string
+		lines = append(lines, playlistTitleStyle.Render("Playlist:"))
+		
+		startIdx := m.player.PlaylistIdx - 3
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		endIdx := startIdx + 7
+		if endIdx > len(m.player.Playlist) {
+			endIdx = len(m.player.Playlist)
+		}
+		
+		if startIdx > 0 {
+			lines = append(lines, playlistItemStyle.Render("  ..."))
+		}
+
+		for i := startIdx; i < endIdx; i++ {
+			trackName := filepath.Base(m.player.Playlist[i])
+			prefix := "  "
+			style := playlistItemStyle
+			if i == m.player.PlaylistIdx {
+				prefix = "▶ "
+				style = currentTrackStyle
+			}
+			lines = append(lines, style.Render(fmt.Sprintf("%s%d. %s", prefix, i+1, trackName)))
+		}
+		
+		if endIdx < len(m.player.Playlist) {
+			lines = append(lines, playlistItemStyle.Render("  ..."))
+		}
+		
+		playlistView = strings.Join(lines, "\n")
+	}
 
 	return appStyle.Render(
 		title + "\n\n" +
 			metadata + "\n\n" +
 			stats + "\n" +
 			progress + "\n\n" +
+			playlistView + "\n\n" +
 			help,
 	)
 }

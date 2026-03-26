@@ -8,7 +8,7 @@ A high-performance, minimalist, and robust Command Line Interface (CLI) music pl
 - **Modern TUI**: Built with BubbleTea and Lipgloss for a dynamic, reactive, and beautiful terminal experience.
 - **Audio Decoding**: Reads and decodes FLAC and WAV files natively in Go.
 - **Metadata Support**: Extracts ID3 and FLAC tags using `dhowden/tag` to display Artist, Album, Title, Sample Rate length and volume.
-- **AI Music Appreciation**: A `feel` command that analyzes digital signal processing (DSP) features using Python's `librosa` and uses LLMs (Gemini, Claude, OpenAI) to write an emotional review of your music.
+- **AI Music Appreciation**: A `feel` command that analyzes digital signal processing (DSP) features using Python's `librosa` and uses LLMs (Gemini, Claude, OpenAI, OpenRouter) to write an emotional review of your music.
 - **Concurrent Design**: Clean separation of concerns between the Audio Thread (beep streams) and the UI Thread (BubbleTea event loop).
 
 ## Architecture

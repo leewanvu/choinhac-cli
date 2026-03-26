@@ -2,6 +2,7 @@ package audio
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"time"
@@ -38,8 +39,10 @@ type Player struct {
 	volume   *effects.Volume
 	streamer beep.StreamSeekCloser
 	format   beep.Format
-	state    State
-	Metadata TrackMetadata
+	state       State
+	Metadata    TrackMetadata
+	Playlist    []string
+	PlaylistIdx int
 
 	// Channels for UI updates
 	done chan bool
@@ -69,6 +72,49 @@ func NewPlayer() *Player {
 		state: StateStopped,
 		done:  make(chan bool, 1),
 	}
+}
+
+// LoadPlaylist sets the playlist and plays the first valid track
+func (p *Player) LoadPlaylist(paths []string, startIndex int) error {
+	if len(paths) == 0 {
+		return fmt.Errorf("empty playlist")
+	}
+	p.Playlist = paths
+	if startIndex < 0 || startIndex >= len(paths) {
+		startIndex = 0
+	}
+	p.PlaylistIdx = startIndex
+	return p.LoadAndPlay(p.Playlist[p.PlaylistIdx])
+}
+
+// Next plays the next track in the playlist
+func (p *Player) Next() error {
+	if len(p.Playlist) <= 1 {
+		return nil
+	}
+	p.PlaylistIdx = (p.PlaylistIdx + 1) % len(p.Playlist)
+	return p.LoadAndPlay(p.Playlist[p.PlaylistIdx])
+}
+
+// Prev plays the previous track in the playlist
+func (p *Player) Prev() error {
+	if len(p.Playlist) <= 1 {
+		return nil
+	}
+	p.PlaylistIdx--
+	if p.PlaylistIdx < 0 {
+		p.PlaylistIdx = len(p.Playlist) - 1
+	}
+	return p.LoadAndPlay(p.Playlist[p.PlaylistIdx])
+}
+
+// Random plays a random track in the playlist
+func (p *Player) Random() error {
+	if len(p.Playlist) <= 1 {
+		return nil
+	}
+	p.PlaylistIdx = rand.IntN(len(p.Playlist))
+	return p.LoadAndPlay(p.Playlist[p.PlaylistIdx])
 }
 
 // LoadAndPlay loads an audio file (WAV or FLAC), extracts metadata, and starts playback
