@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+librosa
+soundfile
+numpy
+python-multipart

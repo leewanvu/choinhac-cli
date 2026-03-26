@@ -8,6 +8,7 @@ A high-performance, minimalist, and robust Command Line Interface (CLI) music pl
 - **Modern TUI**: Built with BubbleTea and Lipgloss for a dynamic, reactive, and beautiful terminal experience.
 - **Audio Decoding**: Reads and decodes FLAC and WAV files natively in Go.
 - **Metadata Support**: Extracts ID3 and FLAC tags using `dhowden/tag` to display Artist, Album, Title, Sample Rate length and volume.
+- **AI Music Appreciation**: A `feel` command that analyzes digital signal processing (DSP) features using Python's `librosa` and uses LLMs (Gemini, Claude, OpenAI) to write an emotional review of your music.
 - **Concurrent Design**: Clean separation of concerns between the Audio Thread (beep streams) and the UI Thread (BubbleTea event loop).
 
 ## Architecture
@@ -15,7 +16,9 @@ A high-performance, minimalist, and robust Command Line Interface (CLI) music pl
 The project is structured into three main layers:
 - **`internal/audio`**: The Audio Engine layer. Contains the `Player` struct which handles the `beep.Streamer`, decoding logic, state management (Play/Pause), volume controls (`beep/effects`), and resampling. Runs asynchronously with respect to the UI.
 - **`internal/ui`**: The TUI layer. Contains the `Model` (BubbleTea framework) and styles (`lipgloss`). Uses a `tea.Tick` command to continually poll the audio thread for playback position safely behind mutexes.
-- **`cmd/player`**: Main entry point. Wires the speaker initialization, UI model, and audio controller together alongside elegant OS signal handling (quitting stops audio gracefully).
+- **`internal/agent` & `internal/analyzer`**: AI integration layers for DSP feature extraction via the Python Analyzer service and LLM prompting.
+- **`cmd/player`**: Main entry point for the music player. Wires the speaker initialization, UI model, and audio controller together alongside elegant OS signal handling.
+- **`cmd/feel`**: Main entry point for the AI Music Appreciation agent.
 
 ## Installation
 
@@ -25,15 +28,24 @@ Ensure you have Go 1.21+ installed.
 git clone <repository>
 cd choinhaccli
 go mod tidy
-go build -o player ./cmd/player
+go build -o build/player ./cmd/player
 ```
 
 ## Usage
 
 Provide an absolute or relative path to a supported audio file (`.flac` or `.wav`).
 
+### 1. Music Player
 ```bash
-./player track.flac
+./build/player track.flac
+# or
+go run cmd/player/main.go track.flac
+```
+
+### 2. AI Music Appreciation (`feel`)
+Before using `feel`, ensure you have the `analyzer` running and an LLM API key exported (e.g. `GEMINI_API_KEY`). See [cmd/feel/README.md](cmd/feel/README.md) for detailed setup.
+```bash
+go run cmd/feel/main.go track.wav
 ```
 
 ### Controls
