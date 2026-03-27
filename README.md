@@ -9,6 +9,7 @@ A high-performance, minimalist, and robust Command Line Interface (CLI) music pl
 - **Audio Decoding**: Reads and decodes FLAC and WAV files natively in Go.
 - **Metadata Support**: Extracts ID3 and FLAC tags using `dhowden/tag` to display Artist, Album, Title, Sample Rate length and volume.
 - **AI Music Appreciation**: A `feel` command that analyzes digital signal processing (DSP) features using Python's `librosa` and uses LLMs (Gemini, Claude, OpenAI, OpenRouter) to write an emotional review of your music.
+- **Vocal Separation & Lyrics Transcription**: A feature within the `feel` command that separates vocals and transcribes them to text using `librosa` and OpenAI Whisper.
 - **Concurrent Design**: Clean separation of concerns between the Audio Thread (beep streams) and the UI Thread (BubbleTea event loop).
 
 ## Architecture
@@ -45,7 +46,11 @@ go run cmd/player/main.go track.flac
 ### 2. AI Music Appreciation (`feel`)
 Before using `feel`, ensure you have the `analyzer` running and an LLM API key exported (e.g. `GEMINI_API_KEY`). See [cmd/feel/README.md](cmd/feel/README.md) for detailed setup.
 ```bash
+# Standard analysis
 go run cmd/feel/main.go track.wav
+
+# Analysis with lyrics extraction
+go run cmd/feel/main.go --separate track.wav
 ```
 
 ### Controls

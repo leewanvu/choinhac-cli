@@ -17,6 +17,8 @@ This service extracts a wide variety of audio features to assist in music analys
 - **Onset Strength**: Detects the strength of musical events or notes.
 - **Energy Profile**: Splits the track into 20 segments to track energy levels over time.
 - **Mood Keywords**: Heuristically derives mood tags (e.g., "energetic", "melancholic", "warm", "rhythmic") based on BPM, key, spectral centroid, RMS energy, and ZCR.
+- **Vocal Separation**: Separates vocals from accompaniment using STFT and nearest-neighbor filtering (`librosa.decompose.nn_filter`).
+- **Lyrics Transcription**: Transcribes the separated vocals into text using OpenAI's Whisper model.
 
 ## Requirements
 
@@ -27,6 +29,7 @@ The service requires Python and the following packages (listed in `requirements.
 - `soundfile`
 - `numpy`
 - `python-multipart`
+- `openai-whisper`
 
 ## Setup & Running
 
@@ -65,6 +68,19 @@ Analyzes an uploaded audio file.
   - `file` (file): The audio file to upload and analyze.
 - **Returns:** JSON object containing the extracted audio features.
 
-### 3. `GET /health`
+### 3. `POST /separate`
+Extracts lyrics from a local audio file by separating vocals and transcribing them using Whisper.
+
+- **Content-Type:** `application/x-www-form-urlencoded`
+- **Parameters:**
+  - `path` (string): The absolute file path to the audio file on the server.
+- **Returns:** JSON object containing the transcribed lyrics:
+  ```json
+  {
+    "lyrics": "Transcribed lyrics text here..."
+  }
+  ```
+
+### 4. `GET /health`
 Checks the health status of the service.
 - **Returns:** `{"status": "ok"}`

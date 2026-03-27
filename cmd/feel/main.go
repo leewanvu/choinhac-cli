@@ -55,6 +55,7 @@ func main() {
 	model := flag.String("model", "", "Model name (uses provider default if empty)")
 	lang := flag.String("lang", "vi", "Output language: vi (Vietnamese), en (English)")
 	analyzerURL := flag.String("analyzer-url", analyzer.DefaultURL, "Analyzer service URL")
+	separate := flag.Bool("separate", false, "Separate vocals from accompaniment")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: feel [flags] <audio_file>\n\n")
 		fmt.Fprintf(os.Stderr, "Let an AI agent listen to your music and share its feelings.\n\n")
@@ -62,6 +63,7 @@ func main() {
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  feel song.flac\n")
+		fmt.Fprintf(os.Stderr, "  feel --separate song.flac\n")
 		fmt.Fprintf(os.Stderr, "  feel --provider openai song.wav\n")
 		fmt.Fprintf(os.Stderr, "  feel --provider claude --lang en track.flac\n")
 		fmt.Fprintf(os.Stderr, "  feel --provider openrouter song.flac\n")
@@ -125,6 +127,47 @@ func main() {
 
 	printFeatures(features)
 	fmt.Println(divider)
+
+	// ── Step 2.5: Extract lyrics ──
+	if *separate {
+		fmt.Println(sectionStyle.Render("✂️ Extracting lyrics..."))
+		fmt.Println()
+
+		sepCtx, sepCancel := context.WithCancel(context.Background())
+		sepMsg := sectionStyle.Render("🎵 Đang tách lời bài hát...")
+
+		go func() {
+			frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+			spinnerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5370")).Bold(true)
+			i := 0
+			for {
+				select {
+				case <-sepCtx.Done():
+					fmt.Print("\r\033[K")
+					return
+				default:
+					fmt.Printf("\r%s %s", sepMsg, spinnerStyle.Render(frames[i]))
+					i = (i + 1) % len(frames)
+					time.Sleep(80 * time.Millisecond)
+				}
+			}
+		}()
+
+		lyrics, err := client.Separate(absPath)
+		sepCancel()
+		time.Sleep(50 * time.Millisecond)
+
+		if err != nil {
+			fmt.Println(errorStyle.Render(fmt.Sprintf("✗ Lyrics extraction failed: %v", err)))
+		} else {
+			fmt.Println(sepMsg + lipgloss.NewStyle().Foreground(lipgloss.Color("#C3E88D")).Bold(true).Render(" ✨ Đã xong!"))
+			fmt.Println()
+			fmt.Println(sectionStyle.Render("📝 Lyrics"))
+			fmt.Println(reviewStyle.Render(lyrics))
+			fmt.Println()
+		}
+		fmt.Println(divider)
+	}
 
 	// ── Step 3: Get AI appreciation ──
 	provider, err := createProvider(*providerName, *model)

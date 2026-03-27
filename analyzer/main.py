@@ -209,3 +209,61 @@ async def analyze_by_upload(file: UploadFile = File(...)):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+def _extract_lyrics(file_path: str) -> str:
+    """Separate vocals from accompaniment and transcribe lyrics using Whisper."""
+    import whisper
+
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    # Step 1: Load audio and separate vocals via nearest-neighbor filter
+    y, sr = librosa.load(file_path, sr=None, mono=True)
+
+    S_full, phase = librosa.magphase(librosa.stft(y))
+
+    width = int(librosa.time_to_frames(2, sr=sr))
+    S_filter = librosa.decompose.nn_filter(S_full,
+                                           aggregate=np.median,
+                                           metric='cosine',
+                                           width=width)
+
+    S_filter = np.minimum(S_full, S_filter)
+
+    margin_v = 10
+    power = 2
+
+    mask_v = librosa.util.softmask(S_full - S_filter,
+                                   margin_v * S_filter,
+                                   power=power)
+
+    S_foreground = mask_v * S_full
+    y_vocals = librosa.istft(S_foreground * phase)
+
+    # Step 2: Save vocals to a temp file for Whisper
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        sf.write(tmp.name, y_vocals, sr)
+        tmp_path = tmp.name
+
+    try:
+        # Step 3: Transcribe with Whisper
+        model = whisper.load_model("base")
+        result = model.transcribe(tmp_path, language=None)
+        lyrics = result.get("text", "").strip()
+    finally:
+        os.unlink(tmp_path)
+
+    return lyrics
+
+
+@app.post("/separate")
+async def separate_by_path(path: str = Form(...)):
+    """Extract lyrics from a local audio file by separating vocals and transcribing."""
+    try:
+        lyrics = _extract_lyrics(path)
+        return JSONResponse(content={"lyrics": lyrics})
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lyrics extraction failed: {e}")

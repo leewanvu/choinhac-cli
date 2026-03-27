@@ -90,3 +90,32 @@ func (c *Client) HealthCheck() error {
 	}
 	return nil
 }
+
+// Separate sends a local file path to the analyzer service to separate vocals
+// and transcribe lyrics. It returns the transcribed lyrics text.
+func (c *Client) Separate(filePath string) (string, error) {
+	data := url.Values{}
+	data.Set("path", filePath)
+
+	resp, err := c.httpClient.PostForm(c.baseURL+"/separate", data)
+	if err != nil {
+		return "", fmt.Errorf("failed to call analyzer service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("analyzer returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result map[string]string
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result["lyrics"], nil
+}
