@@ -115,9 +115,10 @@ type Player struct {
     streamer beep.StreamSeekCloser // Decoder output
     format   beep.Format          // Sample rate, channels
     state    State                // Stopped/Playing/Paused
-    Metadata TrackMetadata        // ID3/FLAC tags
+    Metadata TrackMetadata        // ID3/FLAC tags (+ CoverArt)
     Playlist []string             // Track list
     PlaylistIdx int               // Current index
+    tracker  *amplitudeTracker    // Lock-free amplitude measurement
     done     chan bool            // Track finish signal
 }
 ```
@@ -164,6 +165,8 @@ flac.Decode() or wav.Decode()  [gopxl/beep decoders]
     ↓
 beep.Resample()  [if sample rate ≠ 44.1kHz]
     ↓
+amplitudeTracker (Lock-free peak capture via atomic)
+    ↓
 beep.Ctrl (PlaybackControl)
     ↓
 effects.Volume (Gain adjustment)
@@ -172,12 +175,11 @@ speaker.Play()  [Output to system speaker]
 ```
 
 **Concurrency:**
-- Main goroutine: UI polling (BubbleTea event loop)
-- Audio goroutine: beep.Speaker (internal to gopxl/beep)
-- Track finish: Goroutine waits on `p.done` channel; signals UI
+- Main: UI polling (BubbleTea event loop); Audio: beep.Speaker (internal); Track finish: waits on `p.done`
 
 **Thread-Safe Operations:**
 - State read/write via getters/setters (no mutex; atomic-like behavior)
+- Amplitude tracking: Lock-free via `atomic.Uint64` (no goroutine bottleneck)
 - Position tracking: Safe read from beep.Streamer via mutex in beep
 - Volume adjustment: Safe modification via beep/effects.Volume
 
@@ -191,8 +193,11 @@ speaker.Play()  [Output to system speaker]
 ```go
 type Model struct {
     player *audio.Player  // Reference to audio engine
-    width  int           // Terminal width (for responsive layout)
-    err    error         // Error state (displayed if non-nil)
+    viz visualizer        // 24-bar frequency visualizer
+    art string            // Cached rendered album art
+    lastTrackIdx int      // Track change detection
+    width  int            // Terminal width (for responsive layout)
+    err    error          // Error state (displayed if non-nil)
 }
 ```
 
@@ -243,26 +248,24 @@ Program End
 | `-`, `↓` | Volume down | `VolumeDown()` |
 | `q`, `Ctrl+C` | Quit | `Stop()` + `tea.Quit` |
 
-**View Components:**
+**View Components (2-Column Layout):**
 ```
-┌─────────────────────────────────────────┐
-│ 🎵 CLI Music Player                     │  ← Title
-├─────────────────────────────────────────┤
-│ Artist: Tame Impala                     │  ← Metadata
-│ Album: Currents                         │
-│ Track: The Less I Know The Better [1/5] │
-├─────────────────────────────────────────┤
-│ Sample Rate: 44100 Hz | Playing | Vol: +1.5dB  ← Stats
-│ ████████░░░░░░░░░░ 1:45 / 3:20         │  ← Progress
-├─────────────────────────────────────────┤
-│ Playlist:                               │  ← Playlist window
-│   1. Theresa's Sound World              │
-│ ▶ 2. The Less I Know The Better         │
-│   3. Eventually                         │
-│     ...                                 │
-├─────────────────────────────────────────┤
-│ space: play/pause • n/→: next • ...     │  ← Help
-└─────────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│ Album Art (20x10) │ Artist: Tame Impala       │
+│ JPEG/PNG render   │ Album: Currents           │
+│ Unicode blocks    │ Track: [1/5] The Less...  │
+├────────────────────────────────────────────────┤
+│ ▁▂▃▄▅▆▇█ ▇▆▅▃▂▁ ▂▃▄▅▆ ▆▅▄▃▂▁ ← 24-bar viz   │
+├────────────────────────────────────────────────┤
+│ ▓▓▓▓▓▓░░░░░░░░░░ 1:45 / 3:20  Vol: +1.5dB  │
+├────────────────────────────────────────────────┤
+│ Playlist (7 tracks visible):                   │
+│   1. Theresa's Sound World                     │
+│ ▶ 2. The Less I Know The Better (current)      │
+│   3. Eventually                                │
+├────────────────────────────────────────────────┤
+│ space: play/pause • n: next • q: quit          │
+└────────────────────────────────────────────────┘
 ```
 
 **Polling Loop:**
@@ -742,10 +745,9 @@ speaker (global state)
 ```
 
 **Race Conditions Avoided:**
-- Player state is read-only from UI perspective (no writes from UI)
-- Metadata is updated before state changes
-- Channel reads/writes are thread-safe by design
-- No shared buffers or memory
+- Player state is read-only from UI; metadata updated before state changes
+- Amplitude tracked via lock-free atomic reads (no bottleneck)
+- Channel reads/writes are thread-safe by design; no shared buffers
 
 ---
 
@@ -797,4 +799,3 @@ speaker (global state)
 4. **Caching:** Store analyzer results to avoid re-processing
 5. **Equalizer:** Expose beep/effects filters (bass/treble/reverb)
 6. **Test Coverage:** Unit + integration tests (target 70%)
-
