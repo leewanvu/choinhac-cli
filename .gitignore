@@ -2,5 +2,5 @@
 build/
 *.wav
 .env
-.claude
-.opencode
+.claude/
+.opencode/
