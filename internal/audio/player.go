@@ -35,10 +35,10 @@ const (
 
 // Player manages audio playback, stream formatting, and volume.
 type Player struct {
-	ctrl     *beep.Ctrl
-	volume   *effects.Volume
-	streamer beep.StreamSeekCloser
-	format   beep.Format
+	ctrl        *beep.Ctrl
+	volume      *effects.Volume
+	streamer    beep.StreamSeekCloser
+	format      beep.Format
 	state       State
 	Metadata    TrackMetadata
 	Playlist    []string
@@ -157,7 +157,7 @@ func (p *Player) LoadAndPlay(filename string) error {
 	p.volume = &effects.Volume{
 		Streamer: p.ctrl,
 		Base:     2,
-		Volume:   0, // Normal volume (0 means 1.0x multiplier)
+		Volume:   2.0, // Maximum volume (2.0 means 4x multiplier)
 		Silent:   false,
 	}
 
