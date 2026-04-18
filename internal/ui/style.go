@@ -6,45 +6,70 @@ var (
 	appStyle = lipgloss.NewStyle().Padding(1, 2)
 
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FF5F87")).
-		MarginBottom(1)
+			Bold(true).
+			Foreground(lipgloss.Color("#FF79C6")).
+			MarginBottom(1)
 
-	metadataStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#E2E1ED")).
-		MarginBottom(1)
+	artPanelStyle = lipgloss.NewStyle().
+			Width(24).
+			PaddingRight(2)
 
-	labelStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#7D56F4")).
-		Width(12)
+	infoPanelStyle = lipgloss.NewStyle().
+			PaddingLeft(1)
 
-	valueStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#EEEEEE")).
-		Bold(true)
+	artistStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#CBA6F7")).
+			Bold(true)
 
-	statsStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		Italic(true).
-		MarginBottom(1)
+	albumStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#89B4FA")).
+			Italic(true)
+
+	trackStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#F8F8F2")).
+			Bold(true).
+			MarginBottom(1)
+
+	statusStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#6C7086")).
+			Italic(true).
+			MarginTop(1)
 
 	progressBarStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#F1F1F1")).
-		Background(lipgloss.Color("#2A2A2D"))
+				Foreground(lipgloss.Color("#CBA6F7")).
+				Background(lipgloss.Color("#313244"))
+
+	vizStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#89DCEB")).
+			Bold(true)
+
+	vizSectionStyle = lipgloss.NewStyle().
+			MarginTop(1).
+			MarginBottom(1)
 
 	helpStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262")).
-		MarginTop(1)
+			Foreground(lipgloss.Color("#585B70")).
+			Italic(true).
+			MarginTop(1)
 
 	playlistTitleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#7D56F4")).
-		MarginTop(1).
-		MarginBottom(0)
+				Bold(true).
+				Foreground(lipgloss.Color("#CBA6F7")).
+				MarginBottom(1)
+
+	playlistNumStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#585B70")).
+				Width(3)
 
 	playlistItemStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#A0A0A0"))
+				Foreground(lipgloss.Color("#9399B2"))
+
+	currentNumStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#A6E3A1")).
+			Bold(true).
+			Width(3)
 
 	currentTrackStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#00FF00")).
-		Bold(true)
+				Foreground(lipgloss.Color("#A6E3A1")).
+				Bold(true)
 )
