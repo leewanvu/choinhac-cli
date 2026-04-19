@@ -1,8 +1,8 @@
 # Project Roadmap
 
 **Project:** musiccli (choinhaccli)  
-**Current Phase:** MVP (Phase 1)  
-**Last Updated:** 2026-04-18
+**Current Phase:** MVP Phase 1 (Complete), Phase 2 Planning  
+**Last Updated:** 2026-04-19
 
 ## Roadmap Overview
 
@@ -61,10 +61,31 @@ Phase 1 (MVP) ───── Phase 2 (Enhancement) ───── Phase 3 (Adv
 
 - [x] **CLI Framework**
   - Cobra-based command routing
-  - `musiccli play <path>` subcommand
-  - `musiccli feel <audio_file>` subcommand
+  - `musiccli play <path>` subcommand (TUI playback)
+  - `musiccli feel <audio_file>` subcommand (AI appreciation)
+  - `musiccli serve` subcommand (web server)
   - Graceful error handling
   - Friendly user feedback
+
+- [x] **Web Server & Music Library Management** (Phase 1 Extension)
+  - SQLite library with artist/album/track/playlist tables
+  - Async directory scanner with mtime-based incremental updates
+  - Cover art extraction and caching
+  - REST API for library queries (paginated tracks, search, filter)
+  - HTTP Range support for audio streaming
+  - Favicon, album cover serving with cache headers
+
+- [x] **Web UI (Spotify-like React SPA)**
+  - Vite 6 + React 18 + TypeScript + Zustand
+  - Responsive layout: static sidebar (≥768px), hamburger mobile
+  - Library page with virtualized track list (5000+ tracks)
+  - Search across tracks, albums, artists
+  - Album/Artist detail pages
+  - Playlist management (CRUD, drag-to-reorder)
+  - Now playing bar with cover, seek bar, volume controls
+  - Queue drawer and add-to-playlist dialog
+  - Keyboard shortcuts (space, arrows, M for mute)
+  - localStorage persistence for player state
 
 ### MVP Success Criteria
 

@@ -1,9 +1,10 @@
 # Codebase Summary
 
 **Module:** `choinhaccli`  
-**Total Go LOC:** ~1900  
-**Go Files:** 18  
+**Total Go LOC:** ~2500  
+**Go Files:** 25+ (including web handlers)  
 **Python Files:** 1 (analyzer service)  
+**Web Frontend:** React 18 + TypeScript (Vite)  
 **Last Updated:** 2026-04-19
 
 ## Directory Structure
@@ -545,43 +546,118 @@ type Server struct {
 
 ---
 
-### `web/` (React SPA)
+### `web/` (React SPA, ~3000+ LOC)
 
-**Stack:** Vite 6 + React 18 + TypeScript + Zustand + react-window + @dnd-kit
+**Stack:** Vite 6 + React 18 + TypeScript 5.7 + Zustand 5.0.3 + react-window + @dnd-kit
 
-**Key Modules:**
+**Architecture:**
 
-- `api/client.ts` — Fetch wrapper for all `/api/*` and `/cover/*` endpoints
-- `audio/engine.ts` — HTML5 `<audio>` element abstraction with event emitter
-- `store/player.ts` — Zustand persist: currentTrack, queue, volume, progress
-- `store/ui.ts` — Zustand: queue drawer open, add-to-playlist dialog
-- `pages/library.tsx` — FixedSizeList (react-window, 56px rows, up to 5000 tracks)
-- `pages/search.tsx` — Debounced full-text search across tracks/albums/artists
-- `pages/album-detail.tsx` / `artist-detail.tsx` — Detail views
-- `pages/playlist-detail.tsx` — Drag-to-reorder via @dnd-kit
-- `components/cover-image.tsx` — Lazy `<img src="/cover/{id}">` with ♪ fallback
-- `components/skeleton-track-list.tsx` — Pulsing skeleton while loading
-- `components/empty-state.tsx` — Empty state with icon + subtitle
-- `hooks/use-keyboard-shortcuts.ts` — Space, ←/→, ↑/↓ (volume), M (mute)
+| Module | Purpose |
+|--------|---------|
+| `api/client.ts` | Typed fetch wrapper for `/api/*` + `/cover/*` endpoints |
+| `audio/engine.ts` | HTML5 `<audio>` element abstraction with event emitter (play, pause, seek, volume) |
+| `store/player.ts` | Zustand with localStorage persist: queue, currentIndex, currentTrack, isPlaying, volume, progress |
+| `store/ui.ts` | Zustand UI toggles: queueDrawerOpen, addToPlaylistDialogOpen, selectedTrackForPlaylist |
+| `pages/library.tsx` | FixedSizeList virtualization (react-window, 56px rows, 5000+ tracks without DOM bloat) |
+| `pages/search.tsx` | Debounced full-text search across tracks (20)/albums (10)/artists (10) |
+| `pages/album-detail.tsx` | Album metadata + paginated track list |
+| `pages/artist-detail.tsx` | Artist metadata + album grid |
+| `pages/playlist-detail.tsx` | Drag-to-reorder via @dnd-kit/sortable; add/remove tracks |
+| `components/now-playing-bar.tsx` | Fixed footer (80px): cover, title, artist, progress, controls |
+| `components/track-row.tsx` | Virtualized row: title, artist, album, duration; right-click → add-to-playlist |
+| `components/cover-image.tsx` | Lazy-loaded `<img src="/cover/{id}">` with SVG ♪ fallback |
+| `components/skeleton-track-list.tsx` | Pulsing skeleton during load |
+| `components/empty-state.tsx` | Empty state message + icon |
+| `components/playlist-sidebar.tsx` | Fixed left sidebar (220px): library nav + playlist list |
+| `components/queue-drawer.tsx` | Slide-out drawer: current queue, click to jump, drag to reorder |
+| `components/add-to-playlist-dialog.tsx` | Modal: create playlist + select tracks to add |
+| `hooks/use-keyboard-shortcuts.ts` | Global: space (play/pause), ←/→ (prev/next), ↑/↓ (volume), M (mute) |
+| `hooks/use-playlists.ts` | CRUD wrapper: create, rename, delete, add/remove tracks |
 
-**Responsive:**
-- Desktop ≥768px: static 220px sidebar
-- Mobile <768px: hamburger button → fixed overlay sidebar with backdrop
+**Responsive Design:**
+- Desktop ≥768px: static 220px sidebar (PlaylistSidebar) + content area
+- Mobile <768px: hamburger button → overlay sidebar with semi-transparent backdrop
 
-**State Flow:**
+**State Management (Zustand):**
+
+```typescript
+// player.ts — persisted to localStorage
+const playerStore = {
+  queue: Track[];          // current playlist
+  currentIndex: number;    // position in queue
+  currentTrack?: Track;    // now playing (derived)
+  isPlaying: boolean;      // playback state
+  volume: number;          // 0.0–1.0
+  progress: number;        // 0.0–1.0 (current playback position)
+  setQueue, setCurrentIndex, setVolume, setProgress, next, prev, ...
+}
+
+// ui.ts — temporary toggles (not persisted)
+const uiStore = {
+  queueDrawerOpen: boolean;
+  addToPlaylistDialogOpen: boolean;
+  selectedTrackForPlaylist?: Track;
+}
 ```
-User clicks track → TrackRow → player.playTrack(track, queue)
-  ↓
-engine.ts: new Audio(src="/stream/{id}").play()
-  ↓
-store/player.ts: currentTrack, queue, isPlaying updated
-  ↓
-NowPlayingBar re-renders (cover, title, seek bar)
-  ↓
-onEnded → player.next() → advance queue index
+
+**Audio Engine Pattern:**
+```typescript
+// HTML5 Audio element wrapper with event emitter
+const audio = new Audio('/stream/{trackId}');
+audio.addEventListener('play', () => playerStore.setIsPlaying(true));
+audio.addEventListener('pause', () => playerStore.setIsPlaying(false));
+audio.addEventListener('timeupdate', () => playerStore.setProgress(audio.currentTime / audio.duration));
+audio.addEventListener('ended', () => playerStore.next());
 ```
 
-**Build:** `npm run build` → `web/dist/` (embedded in Go binary via spa_embed.go)
+**Playback Flow:**
+```
+User clicks track in TrackRow
+  ↓
+TrackRow.onClick → player.playTrack(track, queue)
+  ↓
+playerStore.setQueue(queue), setCurrentIndex(idx)
+  ↓
+engine.play('/stream/{id}') → new Audio().play()
+  ↓
+NowPlayingBar re-renders (cover, title, volume slider, progress)
+  ↓
+HTML5 Audio 'ended' event → player.next() → advance currentIndex
+  ↓
+queue exhausted → stop or auto-next via playlist loop
+```
+
+**API Integration:**
+- GET `/api/library/tracks?limit=20&offset=0` → paginated TrackList with reactive scrolling
+- GET `/api/library/albums` → Album grid (note: NOT paginated; potential scale issue >500 albums)
+- GET `/api/search?q=query` → Search across tracks, albums, artists
+- POST `/api/playlists` → Create playlist
+- PUT `/api/playlists/{id}/reorder` → Batch reorder tracks (position-based)
+- GET `/cover/{albumId}` → Album art (7-day cache, SVG fallback)
+- GET `/stream/{id}` → FLAC/WAV/MP3 stream with Range support
+
+**Build:** `npm run build` → `web/dist/` embedded in Go binary via spa_embed.go
+
+---
+
+### React Hooks & Utilities
+
+**Custom Hooks:**
+
+| Hook | Purpose |
+|------|---------|
+| `use-keyboard-shortcuts.ts` | Global keyboard listener: space (play/pause), ←/→ (nav), ↑/↓ (volume), M (mute) |
+| `use-playlists.ts` | Playlist CRUD: create, rename, delete, addTrack, removeTrack (wrapper around API) |
+
+**Zustand Usage:**
+- `playerStore.ts` — Persisted to localStorage via `persist` middleware; survives page refresh
+- `uiStore.ts` — Transient UI state; lost on refresh (intentional)
+
+**React Patterns:**
+- Functional components with hooks (no class components)
+- `useCallback` for stable event handlers in virtualized lists
+- `useMemo` for expensive computations (cover image lazy-loading)
+- `useState` for local component state (dialog visibility, form inputs)
 
 ---
 

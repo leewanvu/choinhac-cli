@@ -4,7 +4,7 @@
 **Module Name:** `choinhaccli`  
 **Binary Name:** `musiccli`  
 **Language:** Go 1.25 + Python 3.10+  
-**Last Updated:** 2026-04-18
+**Last Updated:** 2026-04-19
 
 ## Vision
 
@@ -106,27 +106,37 @@ A minimalist, high-fidelity CLI music player with AI-powered music appreciation.
 ## Acceptance Criteria
 
 ### Play Command
-- [ ] Load single .flac or .wav file → play audio with TUI
-- [ ] Load directory → build playlist, play first file, navigate with n/p/r
-- [ ] Reject unsupported formats with error message
-- [ ] Handle missing files gracefully
-- [ ] Volume control: ±20dB range per adjustment
-- [ ] Pause/resume without click artifacts
-- [ ] Quit with Ctrl+C without segfault
+- [x] Load single .flac or .wav file → play audio with TUI
+- [x] Load directory → build playlist, play first file, navigate with n/p/r
+- [x] Reject unsupported formats with error message
+- [x] Handle missing files gracefully
+- [x] Volume control: ±20dB range per adjustment
+- [x] Pause/resume without click artifacts
+- [x] Quit with Ctrl+C without segfault
 
 ### Feel Command
-- [ ] Load .flac or .wav → call analyzer service
-- [ ] Parse features → build user prompt with metadata + features
-- [ ] Select LLM provider via --provider flag
-- [ ] Generate 2-3 paragraph review in specified language (--lang)
-- [ ] Display formatted output with emoji headers and color styling
-- [ ] Exit gracefully if analyzer unreachable
+- [x] Load .flac or .wav → call analyzer service
+- [x] Parse features → build user prompt with metadata + features
+- [x] Select LLM provider via --provider flag
+- [x] Generate 2-3 paragraph review in specified language (--lang)
+- [x] Display formatted output with emoji headers and color styling
+- [x] Exit gracefully if analyzer unreachable
+
+### Serve Command (Web Server)
+- [x] Load config from YAML or CLI flags
+- [x] Open SQLite library database
+- [x] Scan music directory and extract metadata + cover art
+- [x] Serve REST API with paginated library endpoints
+- [x] Stream FLAC/WAV files with HTTP Range support
+- [x] Serve album cover images with caching headers
+- [x] Embed and serve React SPA (Spotify-like UI)
+- [x] Support drag-to-reorder playlists
 
 ### Code Quality
-- [ ] No compile errors or warnings
-- [ ] Consistent error handling (fmt.Errorf with context)
-- [ ] Comments on exported functions and complex logic
-- [ ] Follow Go conventions (CamelCase, doc comments)
+- [x] No compile errors or warnings
+- [x] Consistent error handling (fmt.Errorf with context)
+- [x] Comments on exported functions and complex logic
+- [x] Follow Go conventions (CamelCase, doc comments)
 
 ## Known Limitations
 

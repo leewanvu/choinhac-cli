@@ -182,8 +182,236 @@ engine.on('ended') → player.next() → advance queue
 | Scanner | Integration via store tests | ✓ |
 | SPA | Manual + browser | ✓ |
 
+## TUI Architecture (`musiccli play`)
+
+### Command Flow
+
+```
+play.go → cmd.RunE
+  ↓
+1. Validate file/directory path
+2. Build playlist from file(s)
+3. audio.InitSpeaker() — initialize system speaker (global, once only)
+4. Create Player + load first track
+5. Create TUI Model + run bubbletea.Run()
+```
+
+### BubbleTea Model Loop
+
+```go
+type Model struct {
+    player *audio.Player     // Playback controller
+    viz visualizer          // 24-bar frequency analyzer
+    art string              // Cached rendered album art
+    width, height int       // Terminal dimensions
+}
+
+// Model implements tea.Model interface:
+// Init() — Setup commands (tick, listeners)
+// Update(msg) — Handle keyboard, tick, events
+// View() — Render TUI to string
+```
+
+**Message Types:**
+
+| Message | Source | Purpose |
+|---------|--------|---------|
+| `tea.KeyMsg` | Keyboard input | User controls (space, arrows, q, r, +/-, n/p) |
+| `tickMsg` | Timer (100ms) | Update frequency bars, refresh progress bar |
+| `trackFinishedMsg` | Goroutine listener | Auto-play next track on end |
+| `tea.WindowSizeMsg` | Terminal | Handle resize; recalculate layout |
+
+**Update Loop:**
+```
+100ms tick → visualizer.update(amplitude) → View() re-renders → 24 bars animated
+             ↓
+Keyboard input → player.Play/Pause/Next/etc → state change → View() re-renders
+             ↓
+Track end (via done channel) → trackFinishedMsg → auto-next
+```
+
+### Display Layout
+
+```
+┌────────────────────────────────────────────────┐
+│  Album Art   │  Track Info (20x10 cells)      │  ← Top panel (30% height)
+│  (Unicode    │  Title, Artist, Album          │
+│  half-blocks │  Sample Rate, Duration, Status │
+│  + border)   │  Volume offset, Time position  │
+├────────────────────────────────────────────────┤
+│  ▁▂▃▄▅▆▇█ ▆▅▄▃▂▁ ▂▃▄▅▆▇█▇▆▅▄▃▂  (24-bar viz)│  ← Visualizer (10% height)
+├────────────────────────────────────────────────┤
+│ [████████░░░░░░░░░░░░░░] 1:23 / 3:45 Playing │  ← Progress (5% height)
+├────────────────────────────────────────────────┤
+│ 1. Current Track (highlighted)                 │  ← Playlist (50% height)
+│ 2. Next track                                  │     7 tracks visible
+│ 3. Next + 1                                    │
+│ ...                                            │
+├────────────────────────────────────────────────┤
+│ space: play/pause  n/→: next  p/←: prev       │  ← Help footer (5% height)
+│ r: random  +/↑: volume up  -/↓: down  q: quit │
+└────────────────────────────────────────────────┘
+```
+
+### Album Art Rendering
+
+**Steps:**
+1. Extract JPEG/PNG from metadata (dhowden/tag)
+2. Decode image bytes → raw pixels
+3. Resize to 20x10 cells via bilinear sampling
+4. Map pixels to Unicode half-block characters: ▀▁▂▃▄▅▆▇█
+5. Apply true-color ANSI codes per cell
+6. Render with border (Rosewater #F5E0DC)
+
+**Performance:** <50ms for typical 500x500 JPEG
+
+### Visualizer (24-Bar Frequency Display)
+
+**Algorithm:**
+```
+amplitude = player.GetAmplitude()  // [0.0, 1.0] from atomic tracker
+  ↓
+bars[i] = amplitude + random_noise * 0.1  // Add noise spread
+  ↓
+if bars[i] > prev_bars[i]:
+  bars[i] = bars[i]  // Rise instantly
+else:
+  bars[i] = prev_bars[i] * 0.75  // Decay (slow fall)
+  ↓
+Render each bar as ▁▂▃▄▅▆▇█ (height = bars[i] * 8)
+```
+
+**Colors:** Gradient Lavender → Flamingo (Catppuccin Mocha)
+
+**Update Rate:** Every 100ms tick
+
+### Keyboard Control Flow
+
+```
+tea.KeyMsg(key) → Model.Update()
+  ↓
+switch key.String():
+  "space" → player.TogglePause()
+  "n", "right" → player.Next()
+  "p", "left" → player.Prev()
+  "r" → player.Random()
+  "+", "up" → player.VolumeUp()
+  "-", "down" → player.VolumeDown()
+  "q", "ctrl+c" → tea.Quit()
+  ↓
+State change → View() re-renders immediately
+```
+
+---
+
+## Audio Engine (beep Layer)
+
+### Speaker Initialization
+
+```go
+// GlobalSpeaker initialized once per process
+var (
+  speaker beep.Speaker
+  once sync.Once
+)
+
+func InitSpeaker() error {
+  var err error
+  once.Do(func() {
+    sampleRate := beep.SampleRate(44100)  // 44.1kHz base
+    bufferSize := sampleRate.N(100 * time.Millisecond) // 4410 samples
+    err = speaker.Init(sampleRate, bufferSize)
+  })
+  return err
+}
+```
+
+**Key Points:**
+- 44.1kHz base rate (industry standard)
+- 100ms buffer → ~4400 samples
+- Resampling handled automatically by beep for 48kHz, 96kHz, 192kHz sources
+- Lock-free amplitude tracking via atomic operations
+
+### Playback Pipeline
+
+```
+Audio File (FLAC/WAV)
+  ↓ [file handler selects decoder]
+gopxl/beep FLAC Decoder | WAV Decoder
+  ↓ [raw PCM samples]
+Resampler (if rate != 44.1kHz)
+  ↓ [amplitude tracking]
+AmplitudeTracker (atomic.Uint64 for lock-free reads)
+  ↓ [volume control]
+effects.Volume (gain adjustment, dB)
+  ↓ [global control]
+beep.Ctrl (pause/resume state machine)
+  ↓ [playback]
+GlobalSpeaker.Play() → System Audio Output
+```
+
+### Amplitude Tracking (Lock-Free)
+
+```go
+type amplitudeTracker struct {
+  wrapped beep.Streamer
+  peak atomic.Uint64
+}
+
+// Lock-free write (no mutex, no channels)
+func (a *amplitudeTracker) Stream(samples [][2]float64) (int, bool) {
+  n, ok := a.wrapped.Stream(samples)
+  var maxAmp float64
+  for _, [2]float64 { ch1, ch2 } := range samples[:n] {
+    amp := (math.Abs(ch1) + math.Abs(ch2)) / 2
+    if amp > maxAmp {
+      maxAmp = amp
+    }
+  }
+  // Atomic store (no locks)
+  a.peak.Store(math.Float64bits(maxAmp))
+  return n, ok
+}
+
+// Lock-free read (from UI update goroutine)
+func (p *Player) GetAmplitude() float64 {
+  bits := p.tracker.peak.Load()
+  return math.Float64frombits(bits)
+}
+```
+
+**Rationale:** UI poll rate (100ms) vs. audio stream rate (~44kHz) creates lock contention; atomic operations eliminate mutex overhead.
+
+### Playlist Navigation
+
+**State Machine:**
+```
+[Stopped] --LoadAndPlay--> [Playing] --Pause--> [Paused] --Play--> [Playing]
+            or Play                                          or toggle
+                                                            
+[Playing] --Stop--> [Stopped]
+[Paused] --Stop--> [Stopped]
+
+Next/Prev/Random work in Playing or Paused state.
+```
+
+**Wraparound:**
+```go
+// Next wraps to first track
+nextIdx := (p.PlaylistIdx + 1) % len(p.Playlist)
+
+// Prev wraps to last track
+prevIdx := (p.PlaylistIdx - 1 + len(p.Playlist)) % len(p.Playlist)
+
+// Random: uniform distribution
+randomIdx := rand.Intn(len(p.Playlist))
+```
+
+---
+
 ## Related Docs
 
 - **Codebase Summary:** `docs/codebase-summary.md`
 - **Project Overview:** `docs/project-overview-pdr.md`
+- **Code Standards:** `docs/code-standards.md`
 - **Plan:** `plans/260418-1926-music-web-app/plan.md`
