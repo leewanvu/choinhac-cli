@@ -59,14 +59,35 @@ The service will run at `http://localhost:8000`.
 
 ## Quick Start
 
-### Play an Audio File
+### Web UI (Spotify-like)
+
+```bash
+# Build and start the web server
+make build
+./bin/musiccli serve --music-dir ~/Music
+
+# Open http://localhost:8080 in Chrome
+```
+
+Options:
+```
+--music-dir  Path to music library (default: ~/Music)
+--port       HTTP port (default: 8080)
+--bind       Bind address (default: 127.0.0.1)
+--db         SQLite DB path (default: ~/.config/musiccli/library.db)
+--scan       Scan on startup, true/false (default: true)
+```
+
+Cover art is extracted automatically to `~/.config/musiccli/covers/` during scan.
+
+### Play an Audio File (TUI)
 
 ```bash
 # Play a single file
-./musiccli play ~/music/song.flac
+./bin/musiccli play ~/music/song.flac
 
-# Or play all FLAC files in a directory
-./musiccli play ~/music/album/
+# Or play all files in a directory
+./bin/musiccli play ~/music/album/
 ```
 
 ### Get AI Review of Your Music
@@ -75,7 +96,7 @@ The service will run at `http://localhost:8000`.
 # Requires: Python analyzer running on localhost:8000
 # Requires: LLM API key in environment (e.g., OPENAI_API_KEY)
 
-./musiccli feel ~/music/song.flac --provider openrouter --lang vi
+./bin/musiccli feel ~/music/song.flac --provider openrouter --lang vi
 ```
 
 Available providers: `openai`, `gemini`, `claude`, `openrouter`  
@@ -83,7 +104,16 @@ Available languages: `vi` (Vietnamese), `en` (English)
 
 ## Controls
 
-### Play Command
+### Web UI (`serve` command)
+
+| Key | Action |
+|-----|--------|
+| `Space` | Play / Pause |
+| `←` / `→` | Previous / Next track |
+| `↑` / `↓` | Volume +10% / -10% |
+| `M` | Mute toggle |
+
+### TUI (`play` command)
 
 | Key(s) | Action |
 |--------|--------|
@@ -188,11 +218,10 @@ musiccli/
 
 ## Known Limitations
 
-- **No Seeking:** Can't click progress bar to jump to time (roadmap for Phase 2)
-- **No MP3:** Only FLAC/WAV supported (MP3 requires CGO; planned Phase 2)
-- **No Config File:** CLI flags + env vars only (planned Phase 2)
-- **200-400ms Track Gap:** Gapless playback not yet implemented (Phase 2)
-- **No Tests Yet:** Manual testing only; automated tests planned Phase 2 (target 70% coverage)
+- **Web — Chrome only:** FLAC streaming relies on Chrome's native FLAC support; Safari not supported
+- **TUI — No MP3:** Only FLAC/WAV in TUI mode (MP3 requires CGO)
+- **TUI — No Seeking:** Progress bar click not implemented in TUI
+- **200-400ms Track Gap:** Gapless playback not yet implemented in TUI
 - **Windows Untested:** Built for macOS/Linux; Windows support TBD
 
 ## Performance

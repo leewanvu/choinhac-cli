@@ -21,4 +21,5 @@ func Execute() {
 func init() {
 	rootCmd.AddCommand(playCmd)
 	rootCmd.AddCommand(feelCmd)
+	rootCmd.AddCommand(serveCmd)
 }

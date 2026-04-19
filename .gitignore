@@ -4,3 +4,6 @@ build/
 .env
 .claude
 .opencode
+bin/
+web/node_modules/
+internal/web/dist/

@@ -1,10 +1,10 @@
 # Codebase Summary
 
 **Module:** `choinhaccli`  
-**Total Go LOC:** ~1565  
-**Go Files:** 14  
+**Total Go LOC:** ~1900  
+**Go Files:** 18  
 **Python Files:** 1 (analyzer service)  
-**Last Updated:** 2026-04-18
+**Last Updated:** 2026-04-19
 
 ## Directory Structure
 
@@ -13,9 +13,10 @@ musiccli/
 ├── cmd/musiccli/
 │   ├── main.go                    — Entry point (calls cmd.Execute())
 │   └── cmd/
-│       ├── root.go                — Cobra root command setup (2 subcommands)
+│       ├── root.go                — Cobra root command setup (3 subcommands)
 │       ├── play.go                — `play` subcommand (TUI playback)
-│       └── feel.go                — `feel` subcommand (AI appreciation)
+│       ├── feel.go                — `feel` subcommand (AI appreciation)
+│       └── serve.go               — `serve` subcommand (HTTP web server)
 ├── internal/
 │   ├── audio/
 │   │   └── player.go              — Audio engine (298 LOC)
@@ -30,13 +31,64 @@ musiccli/
 │   │       ├── gemini.go          — Google Gemini implementation
 │   │       ├── claude.go          — Anthropic Claude implementation
 │   │       └── openrouter.go      — OpenRouter proxy implementation
-│   └── analyzer/
-│       └── analyzer.go            — HTTP client for Python DSP service (93 LOC)
+│   ├── analyzer/
+│   │   └── analyzer.go            — HTTP client for Python DSP service (93 LOC)
+│   ├── library/
+│   │   ├── store.go               — SQLite CRUD operations
+│   │   ├── scanner.go             — Directory walker + metadata extraction
+│   │   ├── cover_extractor.go     — Embedded/directory cover art extraction
+│   │   ├── models.go              — Track, Album, Artist structs
+│   │   └── migrations.go          — Database schema setup
+│   ├── config/
+│   │   └── config.go              — YAML config loader (~/.config/musiccli/)
+│   └── web/
+│       ├── server.go              — chi HTTP router + middleware
+│       ├── spa_embed.go           — SPA fallback + embed.FS wrapper
+│       └── handlers/
+│           ├── library.go         — /api/library/* endpoints
+│           ├── stream.go          — /stream/:id audio streaming
+│           ├── scan.go            — /api/scan async operations
+│           ├── playlist.go        — /api/playlists CRUD + reorder
+│           └── cover.go           — /cover/:albumID image serving
+├── web/                           — Vite+React+TypeScript SPA
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── index.html
+│   ├── src/
+│   │   ├── main.tsx
+│   │   ├── App.tsx                — Responsive shell + keyboard shortcuts
+│   │   ├── pages/
+│   │   │   ├── library.tsx        — Virtualized track list (react-window)
+│   │   │   ├── search.tsx         — Full-text search
+│   │   │   ├── album-detail.tsx   — Album + tracks
+│   │   │   ├── artist-detail.tsx  — Artist + albums
+│   │   │   └── playlist-detail.tsx — Playlist + drag-reorder
+│   │   ├── components/
+│   │   │   ├── track-row.tsx      — Track list item
+│   │   │   ├── now-playing-bar.tsx — Fixed playback bar with cover
+│   │   │   ├── cover-image.tsx    — Lazy album art with placeholder
+│   │   │   ├── skeleton-track-list.tsx — Loading skeleton
+│   │   │   ├── empty-state.tsx    — Empty state UI
+│   │   │   ├── playlist-sidebar.tsx — Sidebar playlist list
+│   │   │   ├── queue-drawer.tsx   — Queue slide-out drawer
+│   │   │   └── add-to-playlist-dialog.tsx — Add-to-playlist modal
+│   │   ├── hooks/
+│   │   │   ├── use-playlists.ts   — Playlist CRUD hook
+│   │   │   └── use-keyboard-shortcuts.ts — Space/arrows/M shortcuts
+│   │   ├── api/
+│   │   │   └── client.ts          — Fetch wrapper for /api/*
+│   │   ├── audio/
+│   │   │   └── engine.ts          — HTML5 <audio> wrapper
+│   │   └── store/
+│   │       ├── player.ts          — Zustand player state (persist)
+│   │       └── ui.ts              — Zustand UI state (queue drawer, dialogs)
+│   └── dist/                      — Built SPA (embedded in binary)
 ├── analyzer/
 │   ├── main.py                    — FastAPI service (librosa DSP)
 │   ├── requirements.txt            — Python dependencies
 │   └── README.md                   — Analyzer setup guide
 ├── go.mod                          — Go module definition (choinhaccli)
+├── Makefile                        — Build orchestration (web → go)
 └── README.md                        — Main project README
 ```
 
@@ -301,6 +353,195 @@ Response: 200 OK if running, error otherwise
 
 ---
 
+### `internal/library` (Music Database & Scanner, ~300+ LOC)
+
+**Files:**
+- `store.go` — SQLite CRUD interface
+- `scanner.go` — Async directory walker + metadata extraction
+- `models.go` — Track, Album, Artist type definitions
+- `migrations.go` — Database schema initialization
+
+**Types:**
+
+```go
+type Track struct {
+    ID        int64
+    Title     string
+    Artist    string
+    Album     string
+    Path      string
+    Duration  int64  // seconds
+    Format    string // "flac" or "wav"
+    FileSize  int64
+    ModTime   int64  // Unix timestamp
+}
+
+type Album struct {
+    ID   int64
+    Name string
+}
+
+type Artist struct {
+    ID   int64
+    Name string
+}
+```
+
+**Key Functions:**
+
+| Function | Purpose |
+|----------|---------|
+| `NewStore(dbPath string) (*Store, error)` | Open SQLite connection + run migrations |
+| `(s *Store) UpsertTrack(track *Track) error` | Insert or update track |
+| `(s *Store) ListTracks(limit, offset int) ([]*Track, error)` | Paginated track list |
+| `(s *Store) GetTrack(id int64) (*Track, error)` | Fetch single track |
+| `(s *Store) ListAlbums() ([]*Album, error)` | All albums |
+| `(s *Store) ListArtists() ([]*Artist, error)` | All artists |
+| `NewScanner(store *Store) *Scanner` | Create scanner |
+| `(sc *Scanner) ScanAsync(ctx context.Context, rootDir string) <-chan Progress` | Async walk + upsert |
+
+**Schema:**
+- `tracks` table: ID, title, artist, album, path, duration, format, file_size, mtime
+- Indexes: path (unique), mtime (for incremental updates)
+- Artist/Album foreign keys (TBD: normalize or denormalize)
+
+**Implementation Details:**
+- Uses `modernc.org/sqlite` (pure Go, no CGO)
+- WAL mode enabled for concurrency
+- Incremental scan: skips files with unchanged mtime
+- Metadata extraction: `dhowden/tag` (reused from audio package)
+
+---
+
+### `internal/config` (Configuration Loader, ~50 LOC)
+
+**File:** `config.go`
+
+**Type:**
+```go
+type Config struct {
+    MusicDir string // music library root
+    DBPath   string // SQLite database path
+    Port     int    // HTTP server port
+    BindAddr string // listen address (default: 127.0.0.1)
+}
+```
+
+**Key Functions:**
+
+| Function | Purpose |
+|----------|---------|
+| `LoadConfig() (*Config, error)` | Load from YAML or CLI flags |
+| `(c *Config) Validate() error` | Check required fields |
+
+**Config File:** `~/.config/musiccli/config.yaml`
+```yaml
+music_dir: ~/Music
+db_path: ~/.local/musiccli/library.db
+port: 8080
+bind_addr: 127.0.0.1
+```
+
+**Precedence:** CLI flags > config file > defaults
+
+---
+
+### `internal/web` (HTTP Server & SPA)
+
+**Files:**
+- `server.go` — chi router setup, middleware
+- `spa_embed.go` — Embed web/dist via go:embed
+- `handlers/library.go` — Track/album/artist API
+- `handlers/stream.go` — Audio file streaming with Range support
+- `handlers/scan.go` — Async scan progress (with cover extraction)
+- `handlers/playlist.go` — Playlist CRUD + reorder API
+- `handlers/cover.go` — Album cover image serving
+
+**Server Type:**
+```go
+type Server struct {
+    router *chi.Mux
+    store  *library.Store
+    config *config.Config
+}
+```
+
+**API Endpoints:**
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/library/tracks` | List tracks (paginated, ?limit=&offset=) |
+| `GET` | `/api/library/albums` | List albums (with cover_path) |
+| `GET` | `/api/library/albums/{id}` | Album detail + tracks |
+| `GET` | `/api/library/artists` | List artists |
+| `GET` | `/api/library/artists/{id}` | Artist detail + albums |
+| `GET` | `/api/search` | Full-text search (?q=) tracks/albums/artists |
+| `POST` | `/api/scan` | Kick off async directory scan + cover extraction |
+| `GET` | `/api/scan/status` | Scan progress |
+| `GET` | `/api/playlists` | List playlists |
+| `POST` | `/api/playlists` | Create playlist |
+| `PUT` | `/api/playlists/{id}` | Rename playlist |
+| `DELETE` | `/api/playlists/{id}` | Delete playlist |
+| `GET` | `/api/playlists/{id}/tracks` | Get playlist tracks |
+| `POST` | `/api/playlists/{id}/tracks` | Add track to playlist |
+| `DELETE` | `/api/playlists/{id}/tracks/{track_id}` | Remove track |
+| `PUT` | `/api/playlists/{id}/reorder` | Reorder tracks |
+| `GET` | `/stream/{id}` | Stream audio file (Range support) |
+| `GET` | `/cover/{albumID}` | Album cover image (7-day cache, SVG placeholder) |
+| `GET` | `/*` | SPA index.html fallback (React Router) |
+
+**Middleware:**
+- Logger: timestamp + method + path + status
+- Recoverer: catch panics
+- CORS: allow localhost (configurable)
+
+**Streaming:**
+- `http.ServeContent()` handles Range requests (206 Partial Content)
+- MIME type detection: `audio/flac`, `audio/wav`
+- File lookup: validate ID, resolve path from store
+
+---
+
+### `web/` (React SPA)
+
+**Stack:** Vite 6 + React 18 + TypeScript + Zustand + react-window + @dnd-kit
+
+**Key Modules:**
+
+- `api/client.ts` — Fetch wrapper for all `/api/*` and `/cover/*` endpoints
+- `audio/engine.ts` — HTML5 `<audio>` element abstraction with event emitter
+- `store/player.ts` — Zustand persist: currentTrack, queue, volume, progress
+- `store/ui.ts` — Zustand: queue drawer open, add-to-playlist dialog
+- `pages/library.tsx` — FixedSizeList (react-window, 56px rows, up to 5000 tracks)
+- `pages/search.tsx` — Debounced full-text search across tracks/albums/artists
+- `pages/album-detail.tsx` / `artist-detail.tsx` — Detail views
+- `pages/playlist-detail.tsx` — Drag-to-reorder via @dnd-kit
+- `components/cover-image.tsx` — Lazy `<img src="/cover/{id}">` with ♪ fallback
+- `components/skeleton-track-list.tsx` — Pulsing skeleton while loading
+- `components/empty-state.tsx` — Empty state with icon + subtitle
+- `hooks/use-keyboard-shortcuts.ts` — Space, ←/→, ↑/↓ (volume), M (mute)
+
+**Responsive:**
+- Desktop ≥768px: static 220px sidebar
+- Mobile <768px: hamburger button → fixed overlay sidebar with backdrop
+
+**State Flow:**
+```
+User clicks track → TrackRow → player.playTrack(track, queue)
+  ↓
+engine.ts: new Audio(src="/stream/{id}").play()
+  ↓
+store/player.ts: currentTrack, queue, isPlaying updated
+  ↓
+NowPlayingBar re-renders (cover, title, seek bar)
+  ↓
+onEnded → player.next() → advance queue index
+```
+
+**Build:** `npm run build` → `web/dist/` (embedded in Go binary via spa_embed.go)
+
+---
+
 ### `analyzer/main.py` (DSP Service, ~330 LOC)
 
 **Language:** Python 3.10+ (FastAPI + librosa)
@@ -342,18 +583,23 @@ Response: 200 OK if running, error otherwise
 
 ```
 cmd/musiccli/cmd/
-  └─ play.go
-     ├─ internal/audio (Player, InitSpeaker)
-     ├─ internal/ui (Model, NewModel)
-     └─ github.com/charmbracelet/bubbletea (tea.Run)
-
-cmd/musiccli/cmd/
-  └─ feel.go
-     ├─ internal/analyzer (Client, Analyze)
-     ├─ internal/agent (Agent, Feel)
-     ├─ internal/agent/providers (LLMProvider implementations)
-     ├─ internal/audio (extractMetadata)
-     └─ github.com/charmbracelet/lipgloss (styling)
+  ├─ play.go
+  │  ├─ internal/audio (Player, InitSpeaker)
+  │  ├─ internal/ui (Model, NewModel)
+  │  └─ github.com/charmbracelet/bubbletea (tea.Run)
+  │
+  ├─ feel.go
+  │  ├─ internal/analyzer (Client, Analyze)
+  │  ├─ internal/agent (Agent, Feel)
+  │  ├─ internal/agent/providers (LLMProvider implementations)
+  │  ├─ internal/audio (extractMetadata)
+  │  └─ github.com/charmbracelet/lipgloss (styling)
+  │
+  └─ serve.go (PHASE 1)
+     ├─ internal/config (LoadConfig)
+     ├─ internal/library (Store, Scanner)
+     ├─ internal/web (Server, StartServer)
+     └─ github.com/go-chi/chi (HTTP router)
 
 internal/audio/
   ├─ github.com/gopxl/beep (Streamer, Speaker, effects)
@@ -371,6 +617,26 @@ internal/agent/
 
 internal/analyzer/
   └─ net/http (HTTP client)
+
+internal/library/ (PHASE 1)
+  ├─ internal/library/store → github.com/modernc.org/sqlite (database/sql)
+  ├─ internal/library/scanner → github.com/dhowden/tag (metadata)
+  └─ go stdlib (os, path/filepath, database/sql, encoding/json)
+
+internal/config/ (PHASE 1)
+  └─ gopkg.in/yaml.v3 (YAML parsing)
+
+internal/web/ (PHASE 1)
+  ├─ internal/library (Store queries)
+  ├─ internal/config (server config)
+  ├─ github.com/go-chi/chi (routing + middleware)
+  └─ go stdlib (net/http, os, io)
+
+web/ (PHASE 1)
+  ├─ react (UI framework)
+  ├─ typescript (type safety)
+  ├─ zustand (state management)
+  └─ vite (build tool)
 
 analyzer/main.py
   ├─ fastapi (FastAPI app)
