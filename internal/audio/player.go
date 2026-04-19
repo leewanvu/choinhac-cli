@@ -22,6 +22,7 @@ type TrackMetadata struct {
 	Album      string
 	SampleRate int
 	Duration   time.Duration
+	CoverArt   []byte // raw JPEG/PNG bytes, nil if none
 }
 
 // State represents the playback state
@@ -40,6 +41,7 @@ type Player struct {
 	streamer    beep.StreamSeekCloser
 	format      beep.Format
 	state       State
+	tracker     *amplitudeTracker
 	Metadata    TrackMetadata
 	Playlist    []string
 	PlaylistIdx int
@@ -142,7 +144,7 @@ func (p *Player) LoadAndPlay(filename string) error {
 	}
 
 	// Extract Metadata
-	p.extractMetadata(f, filename) // This might read tags so we reposition decoder
+	p.extractMetadata(filename)
 
 	// Loop first, then resample. beep.Loop requires a StreamSeeker.
 	var looped beep.Streamer = beep.Loop(1, p.streamer)
@@ -153,7 +155,8 @@ func (p *Player) LoadAndPlay(filename string) error {
 		finalStream = beep.Resample(4, p.format.SampleRate, baseSampleRate, looped)
 	}
 
-	p.ctrl = &beep.Ctrl{Streamer: finalStream, Paused: false}
+	p.tracker = newAmplitudeTracker(finalStream)
+	p.ctrl = &beep.Ctrl{Streamer: p.tracker, Paused: false}
 	p.volume = &effects.Volume{
 		Streamer: p.ctrl,
 		Base:     2,
@@ -176,7 +179,7 @@ func (p *Player) LoadAndPlay(filename string) error {
 	return nil
 }
 
-func (p *Player) extractMetadata(f *os.File, filename string) {
+func (p *Player) extractMetadata(filename string) {
 	// Need a new file handle because tag.ReadFrom might consume bytes differently
 	// or we can just seek back to 0. But for safety, we open a new descriptor.
 	tf, err := os.Open(filename)
@@ -190,6 +193,9 @@ func (p *Player) extractMetadata(f *os.File, filename string) {
 				Album:      m.Album(),
 				SampleRate: int(p.format.SampleRate),
 				Duration:   p.format.SampleRate.D(p.streamer.Len()),
+			}
+			if pic := m.Picture(); pic != nil {
+				p.Metadata.CoverArt = pic.Data
 			}
 			if p.Metadata.Title == "" {
 				p.Metadata.Title = filepath.Base(filename)
@@ -290,6 +296,14 @@ func (p *Player) GetVolume() float64 {
 // GetState returns current player state (playing, paused, stopped)
 func (p *Player) GetState() State {
 	return p.state
+}
+
+// GetAmplitude returns peak amplitude [0.0, 1.0] from last audio chunk
+func (p *Player) GetAmplitude() float64 {
+	if p.tracker == nil || p.state != StatePlaying {
+		return 0
+	}
+	return p.tracker.amplitude()
 }
 
 // Done returns a channel that receives when the track finishes

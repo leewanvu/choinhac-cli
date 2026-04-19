@@ -2,8 +2,8 @@
 build/
 *.wav
 .env
-.claude
-.opencode
+.claude/
+.opencode/
 bin/
 web/node_modules/
 internal/web/dist/

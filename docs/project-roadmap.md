@@ -13,11 +13,11 @@ Phase 1 (MVP) ───── Phase 2 (Enhancement) ───── Phase 3 (Adv
 
 ---
 
-## Phase 1: MVP (CURRENT — In Progress)
+## Phase 1: MVP (CURRENT — Complete ✓)
 
 **Status:** Complete ✓  
 **Timeline:** Completed  
-**Focus:** Core audio playback + AI appreciation
+**Focus:** Core audio playback + AI appreciation + Enhanced UI/UX
 
 ### Completed Features
 
@@ -27,19 +27,23 @@ Phase 1 (MVP) ───── Phase 2 (Enhancement) ───── Phase 3 (Adv
   - Play, pause, resume, stop controls
   - Next/prev/random navigation
   - Volume control (±20dB range)
+  - Lock-free amplitude tracking (atomic operations)
 
-- [x] **Metadata Extraction**
-  - ID3 v2.3 tag parsing
-  - FLAC vorbis comment parsing
+- [x] **Metadata Extraction & Album Art**
+  - ID3 v2.3 tag parsing + cover art extraction
+  - FLAC vorbis comment + embedded art parsing
   - dhowden/tag integration
-  - Display: artist, album, title, sample rate, duration
+  - Display: artist, album, title, sample rate, duration, album art
 
-- [x] **Terminal User Interface**
-  - BubbleTea + Lipgloss
-  - Real-time progress bar with elapsed/total time
+- [x] **Enhanced Terminal User Interface**
+  - BubbleTea + Lipgloss + Catppuccin Mocha theme
+  - 2-column layout: album art (left) + track info (right)
+  - 24-bar real-time frequency visualizer
+  - Unicode half-block album art rendering (JPEG/PNG)
+  - Smooth gradient progress bar with sub-block characters
   - Playlist view (7-track window, current track highlighted)
   - Control hints and status display
-  - 100ms refresh rate
+  - 100ms refresh rate with visual decay effects
 
 - [x] **Playlist Management**
   - Single file or directory of audio files
@@ -193,10 +197,9 @@ ui:
 - [ ] TUI renders correctly
 - [ ] Document platform-specific notes
 
-#### 2.8 gapless Playback
+#### 2.8 Gapless Playback
 **Status:** Not started  
-**Effort:** 2-3 weeks  
-**Effort:** Moderate (requires pre-loading + buffer management)  
+**Effort:** 2-3 weeks (requires pre-loading + buffer management)  
 **Acceptance Criteria:**
 - [ ] Reduce gap between tracks from 200-400ms to <20ms
 - [ ] Pre-load next track while current plays

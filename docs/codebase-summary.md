@@ -19,10 +19,14 @@ musiccli/
 │       └── serve.go               — `serve` subcommand (HTTP web server)
 ├── internal/
 │   ├── audio/
-│   │   └── player.go              — Audio engine (298 LOC)
+│   │   ├── player.go              — Audio engine (298 LOC)
+│   │   └── amplitude_tracker.go    — Lock-free amplitude tracking (atomic)
 │   ├── ui/
-│   │   ├── model.go               — BubbleTea TUI model (233 LOC)
-│   │   └── style.go               — Lipgloss styling (lipgloss styles)
+│   │   ├── model.go               — BubbleTea TUI model (~85 LOC, refactored)
+│   │   ├── view.go                — TUI layout & rendering (~165 LOC)
+│   │   ├── album_art.go           — Album art decoder & Unicode renderer
+│   │   ├── visualizer.go          — 24-bar frequency visualizer
+│   │   └── style.go               — Catppuccin Mocha palette (replaced)
 │   ├── agent/
 │   │   ├── agent.go               — Agent orchestrator (49 LOC)
 │   │   ├── prompt.go              — Prompt builders (Vietnamese/English)
@@ -115,9 +119,11 @@ musiccli/
 
 ---
 
-### `internal/audio` (Audio Engine, ~298 LOC)
+### `internal/audio` (Audio Engine, ~300+ LOC)
 
-**File:** `player.go`
+**Files:**
+- `player.go` — Audio playback engine (298 LOC)
+- `amplitude_tracker.go` — Lock-free amplitude capture (atomic operations)
 
 **Types:**
 
@@ -126,6 +132,7 @@ type TrackMetadata struct {
     Title, Artist, Album string
     SampleRate int
     Duration time.Duration
+    CoverArt []byte  // NEW: JPEG/PNG album art data
 }
 
 type State int  // StateStopped, StatePlaying, StatePaused
@@ -139,7 +146,13 @@ type Player struct {
     Metadata TrackMetadata
     Playlist []string
     PlaylistIdx int
+    tracker *amplitudeTracker  // NEW: amplitude measurement
     done chan bool
+}
+
+type amplitudeTracker struct {
+    wrapped beep.Streamer
+    peak atomic.Uint64  // Lock-free peak storage
 }
 ```
 
@@ -162,7 +175,8 @@ type Player struct {
 | `GetPosition()` | `() time.Duration` | Get current playback position |
 | `GetVolume()` | `() float64` | Get current volume offset (dB) |
 | `Done()` | `() <-chan bool` | Return done channel (signals track end) |
-| `extractMetadata()` | `(path string) *TrackMetadata` | Parse ID3/FLAC tags using dhowden/tag |
+| `GetAmplitude()` | `() float64` | Return current audio amplitude (0.0-1.0) |
+| `extractMetadata()` | `(path string) *TrackMetadata` | Parse ID3/FLAC tags + cover art using dhowden/tag |
 
 **Implementation Details:**
 - Uses `gopxl/beep` for streaming, resampling, effects
@@ -179,19 +193,30 @@ type Player struct {
 
 ---
 
-### `internal/ui` (TUI Layer, ~300+ LOC)
+### `internal/ui` (TUI Layer, ~250+ LOC)
 
 **Files:**
-- `model.go` (233 LOC) — BubbleTea Model implementation
-- `style.go` — Lipgloss color/style definitions
+- `model.go` (~85 LOC) — BubbleTea Model (refactored, View moved to view.go)
+- `view.go` (~165 LOC) — TUI rendering & layout (NEW)
+- `visualizer.go` — 24-bar frequency visualizer (NEW)
+- `album_art.go` — Album art decoder & Unicode renderer (NEW)
+- `style.go` — Catppuccin Mocha palette (refactored)
 
 **BubbleTea Model:**
 
 ```go
 type Model struct {
     player *audio.Player
+    viz visualizer          // NEW: frequency visualization
+    art string              // NEW: cached rendered album art
+    lastTrackIdx int        // NEW: track change detection
     width int
     err error
+}
+
+type visualizer struct {
+    bars [24]float64        // 24-bar display
+    // ... decay & sensitivity parameters
 }
 ```
 
@@ -229,12 +254,30 @@ type Model struct {
 - Playlist: Current track + ±3 neighbors (window scrolls)
 - Help: Control hints
 
-**Styling:**
-- Titles: bold magenta (#FF6B9D)
-- Labels: cyan (#82AAFF)
-- Values: light green (#C3E88D)
-- Progress bar: purple (#C792EA)
-- Current track: highlight style
+**Layout (New 2-Column Design):**
+```
+┌────────────────────────────────────┐
+│  Album Art (20x10) │ Track Info    │  ← 2-column top panel
+├────────────────────────────────────┤
+│  24-Bar Visualizer (full width)    │  ← Live amplitude bars
+├────────────────────────────────────┤
+│  Progress Bar + Time | Status, Vol │
+├────────────────────────────────────┤
+│  Playlist (scrollable, 7 tracks)   │  ← Current track highlighted
+├────────────────────────────────────┤
+│  Help text                         │
+└────────────────────────────────────┘
+```
+
+**Styling (Catppuccin Mocha):**
+- Album art border: Rosewater (#F5E0DC)
+- Info panel background: Surface0 (#313244)
+- Track title: Subtext1 (#BAC2DE)
+- Artist: Text (#CDD6F4)
+- Visualizer bars: Lavender (#B4A7E5) → Flamingo (#F38BA8)
+- Progress fill: Sapphire (#89B4FA) with gradient
+- Current track highlight: Maroon (#EBA0AC)
+- Playlist numbers: Overlay0 (#6C7086)
 
 ---
 

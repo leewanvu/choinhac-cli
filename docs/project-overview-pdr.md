@@ -20,8 +20,11 @@ A minimalist, high-fidelity CLI music player with AI-powered music appreciation.
 
 ### 2. Terminal User Interface (TUI)
 - **Framework:** BubbleTea + Lipgloss
-- **Display:** Real-time playback progress, metadata, playlist view, status bar
-- **Polling:** 100ms refresh for responsive UI
+- **Theme:** Catppuccin Mocha color palette
+- **Display:** Album art (JPEG/PNG), 24-bar visualizer, progress bar, metadata, playlist, status
+- **Layout:** 2-column design with album art on left, track info on right
+- **Visual FX:** Unicode half-block art rendering, animated frequency bars with decay, smooth gradient progress
+- **Polling:** 100ms refresh for responsive UI with real-time amplitude tracking
 - **Controls:** Keyboard-driven (space, arrow keys, +/-, q)
 
 ### 3. AI Music Appreciation (`feel` command)
@@ -50,10 +53,11 @@ A minimalist, high-fidelity CLI music player with AI-powered music appreciation.
 
 | Metric | Value |
 |--------|-------|
-| **Go LOC** | ~1565 lines across 14 files |
+| **Go LOC** | ~1800 lines across 18 files |
 | **Packages** | `audio`, `ui`, `agent`, `analyzer` |
 | **Commands** | `play`, `feel` (cobra subcommands) |
 | **Tests** | None yet (no `*_test.go` files) |
+| **New Components** | amplitude_tracker, album_art, visualizer, view (refactored model) |
 | **Imports** | 4 external (beep, bubbletea, lipgloss, dhowden/tag) |
 
 ## Functional Requirements (FRs)
@@ -66,11 +70,14 @@ A minimalist, high-fidelity CLI music player with AI-powered music appreciation.
 - [x] Volume control (gain adjustment via beep/effects.Volume)
 - [x] Handle end-of-track → auto-play next in playlist
 
-### FR2: TUI Display
-- [x] Show metadata (artist, album, track), playback status, sample rate, volume offset
-- [x] Real-time progress bar with elapsed/total time
-- [x] Playlist window (current track highlighted, ±3 tracks visible)
+### FR2: TUI Display & Visualizations
+- [x] Show metadata (artist, album, track), playback status, volume offset in 2-column layout
+- [x] Display album art (JPEG/PNG) rendered as Unicode half-block characters
+- [x] Real-time progress bar with smooth gradient fill and sub-block precision
+- [x] 24-bar frequency visualizer with lock-free amplitude input and exponential decay
+- [x] Playlist window (current track highlighted, ±3 tracks visible with track numbers)
 - [x] Control hints (space, arrow keys, +/-, r, q)
+- [x] Catppuccin Mocha color theme for all UI elements
 
 ### FR3: AI Music Appreciation
 - [x] Invoke Python analyzer service (POST /analyze with file path)

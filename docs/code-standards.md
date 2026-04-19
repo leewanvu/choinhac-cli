@@ -13,9 +13,13 @@
 ```
 internal/
 ├── audio/
-│   └── player.go          # Package: audio
+│   ├── player.go          # Package: audio
+│   └── amplitude_tracker.go # Package: audio
 ├── ui/
 │   ├── model.go           # Package: ui
+│   ├── view.go            # Package: ui
+│   ├── album_art.go       # Package: ui
+│   ├── visualizer.go      # Package: ui
 │   └── style.go           # Package: ui
 ├── agent/
 │   ├── agent.go           # Package: agent
@@ -188,11 +192,15 @@ func (m TrackMetadata) String() string { return m.Title }
 
 ```
 internal/audio/
-└── player.go          # Player, State, TrackMetadata, InitSpeaker, extractMetadata
+├── player.go          # Player, State, TrackMetadata, InitSpeaker, extractMetadata
+└── amplitude_tracker.go # amplitudeTracker type + newAmplitudeTracker constructor
 
 internal/ui/
-├── model.go           # Model, Init, Update, View (BubbleTea interface)
-└── style.go           # Lipgloss color definitions
+├── model.go           # Model, Init, Update (BubbleTea interface)
+├── view.go            # View() rendering, layout helpers, visualizer update
+├── album_art.go       # renderArt, album art decoding
+├── visualizer.go      # visualizer type, update, render
+└── style.go           # Catppuccin Mocha color definitions
 
 internal/agent/
 ├── agent.go           # Agent, LLMProvider interface
@@ -256,7 +264,7 @@ musiccli/
 | `.py` files | 500 LOC | Analyzer: one service per file |
 | `.md` docs | 800 LOC | Split into subtopics if exceeds |
 
-**Current Violations:** None
+**Current Status:** model.go refactored to ~85 LOC (compliant), view.go ~165 LOC (compliant)
 
 ### Module Organization Rules
 

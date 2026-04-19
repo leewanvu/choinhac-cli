@@ -17,7 +17,9 @@ A high-performance, minimalist CLI music player written in Go with AI-powered mu
 
 ### 🖥️ Modern TUI
 - **Framework:** BubbleTea + Lipgloss for responsive, reactive terminal UI
-- **Real-Time Display:** Progress bar, metadata, playlist window (7 tracks visible), status
+- **Real-Time Display:** Album art, 24-bar visualizer, progress bar with smooth gradient fill, metadata, playlist window (7 tracks visible), status
+- **Visual Enhancements:** Unicode half-block album art (JPEG/PNG cover extraction), animated frequency visualizer with decay
+- **Theme:** Catppuccin Mocha palette with consistent color styling
 - **Keyboard-Driven:** Efficient control without mouse
 - **Responsive:** 100ms refresh rate for smooth experience
 
@@ -185,10 +187,14 @@ musiccli/
 │       └── feel.go       — `feel` subcommand
 ├── internal/
 │   ├── audio/
-│   │   └── player.go     — Audio engine (298 LOC)
+│   │   ├── player.go     — Audio engine (298 LOC)
+│   │   └── amplitude_tracker.go — Lock-free amplitude capture (atomic)
 │   ├── ui/
-│   │   ├── model.go      — BubbleTea model (233 LOC)
-│   │   └── style.go      — Lipgloss styling
+│   │   ├── model.go      — BubbleTea model (~85 LOC, refactored)
+│   │   ├── view.go       — TUI layout & rendering (~165 LOC)
+│   │   ├── album_art.go  — Album art decoder & Unicode renderer
+│   │   ├── visualizer.go — 24-bar frequency visualizer
+│   │   └── style.go      — Catppuccin Mocha styling
 │   ├── agent/
 │   │   ├── agent.go      — LLM orchestrator
 │   │   ├── prompt.go     — Prompt builders
